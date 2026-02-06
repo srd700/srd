@@ -123,8 +123,10 @@ def impute_dataset(df: pd.DataFrame) -> pd.DataFrame:
 
     imputed["gender"] = imputed["gender"].fillna("unknown")
     imputed["background"] = imputed["background"].fillna("unknown")
-    imputed["serious"] = imputed["serious"].fillna(imputed["serious"].mode()[0])
-    imputed["course"] = imputed["course"].fillna(imputed["course"].mode()[0])
+    for col in ["serious", "course"]:
+        mode = imputed[col].mode()
+        fallback = mode.iloc[0] if not mode.empty else "unknown"
+        imputed[col] = imputed[col].fillna(fallback)
 
     return imputed
 
