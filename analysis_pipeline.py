@@ -123,8 +123,10 @@ def impute_dataset(df: pd.DataFrame) -> pd.DataFrame:
 
     imputed["gender"] = imputed["gender"].fillna("unknown")
     imputed["background"] = imputed["background"].fillna("unknown")
-    imputed["serious"] = imputed["serious"].fillna(imputed["serious"].mode()[0])
-    imputed["course"] = imputed["course"].fillna(imputed["course"].mode()[0])
+    for col in ["serious", "course"]:
+        mode = imputed[col].mode()
+        fallback = mode.iloc[0] if not mode.empty else "unknown"
+        imputed[col] = imputed[col].fillna(fallback)
 
     return imputed
 
@@ -175,25 +177,31 @@ def plot_quartiles(df: pd.DataFrame, title: str) -> None:
 
 def plot_dataset_overview(df: pd.DataFrame, title: str) -> None:
     """Show EDA for a single dataset in a dedicated view."""
-    fig, axes = plt.subplots(3, 3, figsize=(16, 14))
+    fig, axes = plt.subplots(3, 3, figsize=(18, 14))
     fig.suptitle(title, fontsize=16)
 
-    sns.countplot(data=df, x="success", ax=axes[0, 0])
+    sns.countplot(data=df, x="success", ax=axes[0, 0], palette="Set2")
     axes[0, 0].set_title("Success Balance")
 
-    sns.histplot(data=df, x="attendance", bins=20, kde=True, ax=axes[0, 1])
+    sns.histplot(
+        data=df, x="attendance", bins=20, kde=True, ax=axes[0, 1], color="#4c72b0"
+    )
     axes[0, 1].set_title("Attendance Distribution")
 
-    sns.histplot(data=df, x="age", bins=20, kde=True, ax=axes[0, 2])
+    sns.histplot(data=df, x="age", bins=20, kde=True, ax=axes[0, 2], color="#55a868")
     axes[0, 2].set_title("Age Distribution")
 
-    sns.histplot(data=df, x="personal_work", bins=20, kde=True, ax=axes[1, 0])
+    sns.histplot(
+        data=df, x="personal_work", bins=20, kde=True, ax=axes[1, 0], color="#c44e52"
+    )
     axes[1, 0].set_title("Personal Work Distribution")
 
-    sns.violinplot(data=df, x="success", y="attendance", ax=axes[1, 1])
+    sns.violinplot(data=df, x="success", y="attendance", ax=axes[1, 1], palette="Set2")
     axes[1, 1].set_title("Attendance vs Success")
 
-    sns.violinplot(data=df, x="success", y="personal_work", ax=axes[1, 2])
+    sns.violinplot(
+        data=df, x="success", y="personal_work", ax=axes[1, 2], palette="Set2"
+    )
     axes[1, 2].set_title("Personal Work vs Success")
 
     working = df.copy()
@@ -203,12 +211,17 @@ def plot_dataset_overview(df: pd.DataFrame, title: str) -> None:
         .apply(lambda series: (series == "Pass").mean() * 100)
         .reset_index()
     )
-    sns.barplot(data=rate, x="att_bin", y="success", ax=axes[2, 0])
+    sns.barplot(data=rate, x="att_bin", y="success", ax=axes[2, 0], palette="Blues")
     axes[2, 0].set_ylabel("% Pass")
     axes[2, 0].set_title("Pass Rate by Attendance Quartile")
 
-    axes[2, 1].axis("off")
-    axes[2, 2].axis("off")
+    sns.countplot(data=df, y="gender", ax=axes[2, 1], palette="pastel")
+    axes[2, 1].set_title("Gender Breakdown")
+    axes[2, 1].set_xlabel("Count")
+
+    sns.countplot(data=df, y="background", ax=axes[2, 2], palette="pastel")
+    axes[2, 2].set_title("Background Breakdown")
+    axes[2, 2].set_xlabel("Count")
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
@@ -216,10 +229,10 @@ def plot_dataset_overview(df: pd.DataFrame, title: str) -> None:
 
 def plot_comparison(df: pd.DataFrame) -> None:
     """Compare Dataset 1 vs Dataset 2 without mixing them together."""
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
     fig.suptitle("Dataset Comparison", fontsize=16)
 
-    sns.countplot(data=df, x="success", hue="dataset", ax=axes[0, 0])
+    sns.countplot(data=df, x="success", hue="dataset", ax=axes[0, 0], palette="Set2")
     axes[0, 0].set_title("Success Balance by Dataset")
 
     sns.histplot(
@@ -233,7 +246,18 @@ def plot_comparison(df: pd.DataFrame) -> None:
     )
     axes[0, 1].set_title("Attendance Distribution by Dataset")
 
-    sns.violinplot(data=df, x="dataset", y="attendance", ax=axes[1, 0])
+    sns.histplot(
+        data=df,
+        x="personal_work",
+        hue="dataset",
+        bins=20,
+        kde=True,
+        element="step",
+        ax=axes[0, 2],
+    )
+    axes[0, 2].set_title("Personal Work Distribution by Dataset")
+
+    sns.violinplot(data=df, x="dataset", y="attendance", ax=axes[1, 0], palette="Set2")
     axes[1, 0].set_title("Attendance Spread by Dataset")
 
     working = df.copy()
@@ -245,9 +269,15 @@ def plot_comparison(df: pd.DataFrame) -> None:
         .apply(lambda series: (series == "Pass").mean() * 100)
         .reset_index()
     )
-    sns.barplot(data=rate, x="att_bin", y="success", hue="dataset", ax=axes[1, 1])
+    sns.barplot(
+        data=rate, x="att_bin", y="success", hue="dataset", ax=axes[1, 1], palette="Set2"
+    )
     axes[1, 1].set_ylabel("% Pass")
     axes[1, 1].set_title("Pass Rate by Attendance Quartile")
+
+    sns.countplot(data=df, y="course", hue="dataset", ax=axes[1, 2], palette="Set2")
+    axes[1, 2].set_title("Course Breakdown by Dataset")
+    axes[1, 2].set_xlabel("Count")
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
