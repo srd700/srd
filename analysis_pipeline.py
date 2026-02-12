@@ -24,6 +24,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.tree import DecisionTreeClassifier, export_text
 
@@ -101,23 +102,38 @@ def load_and_prepare_dataset(path: Path, dataset_name: str) -> DatasetBundle:
 
 
 def build_preprocessor(x: pd.DataFrame) -> Tuple[ColumnTransformer, List[str], List[str]]:
-    """Build preprocessing that handles mixed data types.
+    """Build preprocessing that handles mixed data types with imputation.
 
-    Numeric columns are passed through.
-    Categorical columns are one-hot encoded with unknown categories ignored.
+    - Numeric columns: median imputation then passthrough.
+    - Categorical columns: most-frequent imputation then one-hot encoding.
+
+    This prevents downstream estimators (e.g., DecisionTreeClassifier/GaussianNB)
+    from failing on NaN values.
     """
     numeric_cols = x.select_dtypes(include=[np.number]).columns.tolist()
     categorical_cols = [c for c in x.columns if c not in numeric_cols]
 
+    num_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+        ]
+    )
+
+    cat_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
+
     preprocessor = ColumnTransformer(
         transformers=[
-            ("num", "passthrough", numeric_cols),
-            ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_cols),
+            ("num", num_pipeline, numeric_cols),
+            ("cat", cat_pipeline, categorical_cols),
         ],
         remainder="drop",
     )
     return preprocessor, numeric_cols, categorical_cols
-
 
 
 
@@ -321,6 +337,31 @@ def compare_models_textually(tree_metrics: Dict[str, object], nb_metrics: Dict[s
         "and interaction modeling is not central."
     )
 
+
+
+
+def build_dense_nb_preprocessor(numeric_cols: List[str], categorical_cols: List[str]) -> ColumnTransformer:
+    """Build Naive Bayes preprocessing with imputation and dense one-hot output."""
+    num_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+        ]
+    )
+
+    cat_pipeline = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", make_one_hot_encoder_dense()),
+        ]
+    )
+
+    return ColumnTransformer(
+        transformers=[
+            ("num", num_pipeline, numeric_cols),
+            ("cat", cat_pipeline, categorical_cols),
+        ],
+        remainder="drop",
+    )
 
 def compute_rule_support(df_features: pd.DataFrame, conditions: Iterable[Tuple[str, str, float]]) -> float:
     """Compute support of a simple conjunction rule on original (non-encoded) feature space."""
@@ -569,17 +610,7 @@ def run_pipeline(dataset1_path: Path, dataset2_path: Path, enable_plots: bool = 
     # ------------------------------------------------------------------
     print_header("STEP 7 - NAIVE BAYES MODEL")
     # Naive Bayes requires dense numeric array; one-hot output is dense for coursework simplicity.
-    nb_preprocessor = ColumnTransformer(
-        transformers=[
-            ("num", "passthrough", numeric_cols),
-            (
-                "cat",
-                make_one_hot_encoder_dense(),
-                categorical_cols,
-            ),
-        ],
-        remainder="drop",
-    )
+    nb_preprocessor = build_dense_nb_preprocessor(numeric_cols, categorical_cols)
     nb_pipeline = Pipeline(
         steps=[
             ("prep", nb_preprocessor),
